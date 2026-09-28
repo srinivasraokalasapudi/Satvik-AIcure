@@ -1,5 +1,5 @@
 from http.server import BaseHTTPRequestHandler
-import json, os, base64, io
+import json, os, base64, io, re
 from groq import Groq
 from gtts import gTTS
 
@@ -11,7 +11,8 @@ SYSTEM = (
     "your answer should mimic that of an actual doctor, not an AI bot. Keep your answer concise (max 2 sentences). "
     "No preamble, start your answer right away please."
 )
-MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
+# Change with the GROQ_MODEL environment variable if Groq retires this model again
+MODEL = os.environ.get("GROQ_MODEL", "qwen/qwen3.8-27b")
 
 
 class handler(BaseHTTPRequestHandler):
@@ -38,8 +39,11 @@ class handler(BaseHTTPRequestHandler):
             if image:
                 content.append({"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + image}})
             client = Groq(api_key=key)
-            res = client.chat.completions.create(messages=[{"role": "user", "content": content}], model=MODEL)
-            text = res.choices[0].message.content
+            res = client.chat.completions.create(messages=[{"role": "user", "content": content}], model=MODEL, max_completion_tokens=1024)
+            text = res.choices[0].message.content or ""
+            text = re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip()
+            if not text:
+                return self._send(500, {"error": "The model returned an empty answer. Please try again."})
             audio = None
             try:
                 buf = io.BytesIO()
