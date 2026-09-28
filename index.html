@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AIcura | AI Health Assistant</title>
+<style>
+:root{--bg:#0c0913;--card:#171024;--line:#2c2043;--ink:#f3effc;--mute:#a79dbd;--v:#8b5cf6;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 system-ui,sans-serif;background-image:radial-gradient(600px 380px at 85% 0,rgba(139,92,246,.28),transparent 70%);background-repeat:no-repeat}
+main{max-width:640px;margin:0 auto;padding:40px 20px}
+h1{font-size:2rem;margin:0 0 6px}p.sub{color:var(--mute);margin:0 0 26px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px}
+label{display:block;font-weight:600;margin:0 0 6px}
+textarea{width:100%;min-height:96px;background:#0f0a19;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:12px;font:inherit;resize:vertical}
+input[type=file]{width:100%;margin:0 0 18px;color:var(--mute)}
+textarea{margin-bottom:18px}
+button{background:var(--v);color:#fff;border:0;border-radius:999px;padding:12px 26px;font:600 1rem system-ui;cursor:pointer}
+button:disabled{opacity:.6;cursor:wait}
+:focus-visible{outline:3px solid #c4b0fb;outline-offset:2px}
+#out{margin-top:22px;display:none}
+#txt{background:#0f0a19;border:1px solid var(--line);border-radius:10px;padding:14px;white-space:pre-wrap}
+audio{width:100%;margin-top:12px}
+.err{color:#ff9aa8}
+small{display:block;margin-top:22px;color:var(--mute)}
+</style></head><body><main>
+<h1>🩺 AIcura</h1>
+<p class="sub">Your AI health assistant. Describe your symptoms and get a doctor-style reply with audio.</p>
+<div class="card">
+<label for="s">Describe your symptoms</label>
+<textarea id="s" maxlength="1000" placeholder="e.g., I have a rash on my arm"></textarea>
+<label for="f">Upload image (optional)</label>
+<input id="f" type="file" accept="image/png,image/jpeg">
+<button id="go">Get diagnosis</button>
+<div id="out"><label>Doctor's response</label><div id="txt" role="status"></div><audio id="au" controls hidden></audio></div>
+</div>
+<small>This is a learning project and not a replacement for real medical advice.</small>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+function shrink(file){return new Promise((ok,no)=>{
+  const img=new Image();img.onload=()=>{const m=1024,r=Math.min(1,m/Math.max(img.width,img.height));
+  const c=document.createElement('canvas');c.width=img.width*r;c.height=img.height*r;
+  c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+  ok(c.toDataURL('image/jpeg',.8).split(',')[1]);};
+  img.onerror=no;img.src=URL.createObjectURL(file);});}
+$('go').onclick=async()=>{
+  const btn=$('go'),txt=$('txt'),au=$('au');
+  $('out').style.display='block';txt.className='';au.hidden=true;au.removeAttribute('src');
+  const symptoms=$('s').value.trim();
+  if(!symptoms){txt.textContent='Please describe your symptoms to proceed.';return;}
+  btn.disabled=true;txt.textContent='Thinking...';
+  try{
+    const body={symptoms};
+    const file=$('f').files[0];
+    if(file)body.image=await shrink(file);
+    const res=await fetch('/api/diagnose',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await res.json();
+    if(!res.ok){txt.className='err';txt.textContent=d.error||'Something went wrong.';}
+    else{txt.textContent=d.text;if(d.audio){au.src='data:audio/mpeg;base64,'+d.audio;au.hidden=false;}}
+  }catch(e){txt.className='err';txt.textContent='Could not reach the server. Try again.';}
+  btn.disabled=false;
+};
+</script></body></html>
